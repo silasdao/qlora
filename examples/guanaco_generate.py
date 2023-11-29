@@ -6,18 +6,18 @@ from peft import PeftModel
 from peft.tuners.lora import LoraLayer
 
 def get_last_checkpoint(checkpoint_dir):
-    if isdir(checkpoint_dir):
-        is_completed = exists(join(checkpoint_dir, 'completed'))
-        if is_completed: return None, True # already finished
-        max_step = 0
-        for filename in os.listdir(checkpoint_dir):
-            if isdir(join(checkpoint_dir, filename)) and filename.startswith('checkpoint'):
-                max_step = max(max_step, int(filename.replace('checkpoint-', '')))
-        if max_step == 0: return None, is_completed # training started, but no checkpoint
-        checkpoint_dir = join(checkpoint_dir, f'checkpoint-{max_step}')
-        print(f"Found a previous checkpoint at: {checkpoint_dir}")
-        return checkpoint_dir, is_completed # checkpoint found!
-    return None, False # first training
+    if not isdir(checkpoint_dir):
+        return None, False # first training
+    is_completed = exists(join(checkpoint_dir, 'completed'))
+    if is_completed: return None, True # already finished
+    max_step = 0
+    for filename in os.listdir(checkpoint_dir):
+        if isdir(join(checkpoint_dir, filename)) and filename.startswith('checkpoint'):
+            max_step = max(max_step, int(filename.replace('checkpoint-', '')))
+    if max_step == 0: return None, is_completed # training started, but no checkpoint
+    checkpoint_dir = join(checkpoint_dir, f'checkpoint-{max_step}')
+    print(f"Found a previous checkpoint at: {checkpoint_dir}")
+    return checkpoint_dir, is_completed # checkpoint found!
 
 
 # TODO: Update variables

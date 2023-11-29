@@ -46,7 +46,7 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 def is_ipex_available():
     def get_major_and_minor_from_version(full_version):
-        return str(version.parse(full_version).major) + "." + str(version.parse(full_version).minor)
+        return f"{str(version.parse(full_version).major)}.{str(version.parse(full_version).minor)}"
 
     _torch_version = importlib.metadata.version("torch")
     if importlib.util.find_spec("intel_extension_for_pytorch") is None:
@@ -292,7 +292,7 @@ def get_accelerate_model(args, checkpoint_dir):
         n_gpus = torch.cuda.device_count()
     if is_ipex_available() and torch.xpu.is_available():
         n_gpus = torch.xpu.device_count()
-        
+
     max_memory = f'{args.max_memory_MB}MB'
     max_memory = {i: max_memory for i in range(n_gpus)}
     device_map = "auto"
@@ -333,7 +333,7 @@ def get_accelerate_model(args, checkpoint_dir):
             print('='*80)
             print('Your GPU supports bfloat16, you can accelerate training with the argument --bf16')
             print('='*80)
-            
+
     if compute_dtype == torch.float16 and (is_ipex_available() and torch.xpu.is_available()):
         compute_dtype = torch.bfloat16
         print('Intel XPU does not support float16 yet, so switching to bfloat16')
@@ -372,7 +372,7 @@ def get_accelerate_model(args, checkpoint_dir):
                     model.config.pad_token_id if model.config.pad_token_id != -1 else tokenizer.pad_token_id
                 ),
         })
-    
+
     if not args.full_finetune:
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=args.gradient_checkpointing)
 
@@ -381,7 +381,7 @@ def get_accelerate_model(args, checkpoint_dir):
             print("Loading adapters from checkpoint.")
             model = PeftModel.from_pretrained(model, join(checkpoint_dir, 'adapter_model'), is_trainable=True)
         else:
-            print(f'adding LoRA modules...')
+            print('adding LoRA modules...')
             modules = find_all_linear_names(args, model)
             config = LoraConfig(
                 r=args.lora_r,
@@ -544,8 +544,7 @@ def local_dataset(dataset_name):
     else:
         raise ValueError(f"Unsupported dataset format: {dataset_name}")
 
-    split_dataset = full_dataset.train_test_split(test_size=0.1)
-    return split_dataset
+    return full_dataset.train_test_split(test_size=0.1)
 
 def make_data_module(tokenizer: transformers.PreTrainedTokenizer, args) -> Dict:
     """
@@ -672,18 +671,18 @@ def make_data_module(tokenizer: transformers.PreTrainedTokenizer, args) -> Dict:
     )
 
 def get_last_checkpoint(checkpoint_dir):
-    if isdir(checkpoint_dir):
-        is_completed = exists(join(checkpoint_dir, 'completed'))
-        if is_completed: return None, True # already finished
-        max_step = 0
-        for filename in os.listdir(checkpoint_dir):
-            if isdir(join(checkpoint_dir, filename)) and filename.startswith('checkpoint'):
-                max_step = max(max_step, int(filename.replace('checkpoint-', '')))
-        if max_step == 0: return None, is_completed # training started, but no checkpoint
-        checkpoint_dir = join(checkpoint_dir, f'checkpoint-{max_step}')
-        print(f"Found a previous checkpoint at: {checkpoint_dir}")
-        return checkpoint_dir, is_completed # checkpoint found!
-    return None, False # first training
+    if not isdir(checkpoint_dir):
+        return None, False # first training
+    is_completed = exists(join(checkpoint_dir, 'completed'))
+    if is_completed: return None, True # already finished
+    max_step = 0
+    for filename in os.listdir(checkpoint_dir):
+        if isdir(join(checkpoint_dir, filename)) and filename.startswith('checkpoint'):
+            max_step = max(max_step, int(filename.replace('checkpoint-', '')))
+    if max_step == 0: return None, is_completed # training started, but no checkpoint
+    checkpoint_dir = join(checkpoint_dir, f'checkpoint-{max_step}')
+    print(f"Found a previous checkpoint at: {checkpoint_dir}")
+    return checkpoint_dir, is_completed # checkpoint found!
 
 def train():
     hfparser = transformers.HfArgumentParser((
@@ -696,7 +695,7 @@ def train():
         **vars(model_args), **vars(data_args), **vars(training_args)
     )
     print(args)
-    
+
     checkpoint_dir, completed_training = get_last_checkpoint(args.output_dir)
     if completed_training:
         print('Detected that training was already completed!')
@@ -708,7 +707,7 @@ def train():
     set_seed(args.seed)
 
     data_module = make_data_module(tokenizer=tokenizer, args=args)
-    
+
     trainer = Seq2SeqTrainer(
         model=model,
         tokenizer=tokenizer,
@@ -726,8 +725,7 @@ def train():
                 'test': 'data/mmlu/zero_shot_mmlu_test.json',
             })
             mmlu_dataset = mmlu_dataset.remove_columns('subject')
-        # MMLU Five-shot (Eval/Test only)
-        elif args.mmlu_dataset == 'mmlu' or args.mmlu_dataset == 'mmlu-fs':
+        elif args.mmlu_dataset in ['mmlu', 'mmlu-fs']:
             mmlu_dataset = load_dataset("json", data_files={
                 'eval': 'data/mmlu/five_shot_mmlu_val.json',
                 'test': 'data/mmlu/five_shot_mmlu_test.json',
@@ -789,8 +787,7 @@ def train():
         dtype = p.dtype
         if dtype not in dtypes: dtypes[dtype] = 0
         dtypes[dtype] += p.numel()
-    total = 0
-    for k, v in dtypes.items(): total+= v
+    total = sum(dtypes.values())
     for k, v in dtypes.items():
         print(k, v, v/total)
 

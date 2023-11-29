@@ -50,8 +50,7 @@ def get_eval(sys_prompt, user_prompt: str, max_tokens: int, model: str):
 
 def parse_three_class_score(review):
     try:
-        score = int(review.strip().split("\n")[-1].strip())
-        return score
+        return int(review.strip().split("\n")[-1].strip())
     except Exception as e:
         logger.error(
             f"{e}\nContent: {review}\n" "You must manually fix the score pair."
@@ -75,12 +74,14 @@ def parse_score(review):
 
 
 def gen_prompt(reviewer_jsons, prompt_jsons, cat, ques, ans1, ans2):
-    # Default to general category (index=0)
-    reviewer_idx = 0
-    for idx, reviewer in enumerate(reviewer_jsons):
-        if reviewer["category"] == cat:
-            reviewer_idx = idx
-            break
+    reviewer_idx = next(
+        (
+            idx
+            for idx, reviewer in enumerate(reviewer_jsons)
+            if reviewer["category"] == cat
+        ),
+        0,
+    )
     prompt_id = reviewer_jsons[reviewer_idx]["prompt_id"]
     prompt_json = prompt_jsons[prompt_id - 1]
     assert prompt_json["prompt_id"] == prompt_id
@@ -98,10 +99,7 @@ def gen_prompt(reviewer_jsons, prompt_jsons, cat, ques, ans1, ans2):
 def get_json_list(file_path):
     file_path = os.path.expanduser(file_path)
     with open(file_path, "r") as f:
-        json_list = []
-        for line in f:
-            json_list.append(json.loads(line))
-        return json_list
+        return [json.loads(line) for line in f]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ChatGPT-based QA evaluation.")
@@ -137,7 +135,7 @@ if __name__ == "__main__":
     reviewer_jsons = get_json_list(args.reviewer_file)
     prompt_jsons = get_json_list(args.prompt_file)
 
-    question_ids = set(question[args.id_key] for question in question_jsons)
+    question_ids = {question[args.id_key] for question in question_jsons}
     question_jsons = sorted(question_jsons, key=lambda x: x[args.id_key])
     answer1_jsons = sorted(
         [answer for answer in answer1_jsons if answer[args.id_key] in question_ids],
